@@ -1,17 +1,17 @@
 # Migrating from pytorch-pretrained-bert
 
 
-Here is a quick summary of what you should take care of when migrating from `pytorch-pretrained-bert` to `pytorch-transformers`
+Here is a quick summary of what you should take care of when migrating from `pytorch-pretrained-bert` to `transformers`
 
 ### Models always output `tuples`
 
-The main breaking change when migrating from `pytorch-pretrained-bert` to `pytorch-transformers` is that the models forward method always outputs a `tuple` with various elements depending on the model and the configuration parameters.
+The main breaking change when migrating from `pytorch-pretrained-bert` to `transformers` is that the models forward method always outputs a `tuple` with various elements depending on the model and the configuration parameters.
 
-The exact content of the tuples for each model are detailled in the models' docstrings and the [documentation](https://huggingface.co/pytorch-transformers/).
+The exact content of the tuples for each model are detailled in the models' docstrings and the [documentation](https://huggingface.co/transformers/).
 
 In pretty much every case, you will be fine by taking the first element of the output as the output you previously used in `pytorch-pretrained-bert`.
 
-Here is a `pytorch-pretrained-bert` to `pytorch-transformers` conversion example for a `BertForSequenceClassification` classification model:
+Here is a `pytorch-pretrained-bert` to `transformers` conversion example for a `BertForSequenceClassification` classification model:
 
 ```python
 # Let's load our model
@@ -20,11 +20,11 @@ model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
 # If you used to have this line in pytorch-pretrained-bert:
 loss = model(input_ids, labels=labels)
 
-# Now just use this line in pytorch-transformers to extract the loss from the output tuple:
+# Now just use this line in transformers to extract the loss from the output tuple:
 outputs = model(input_ids, labels=labels)
 loss = outputs[0]
 
-# In pytorch-transformers you can also have access to the logits:
+# In transformers you can also have access to the logits:
 loss, logits = outputs[:2]
 
 # And even the attention weigths if you configure the model to output them (and other outputs too, see the docstrings and documentation)
@@ -84,26 +84,26 @@ Here is a conversion examples from `BertAdam` with a linear warmup and decay sch
 # Parameters:
 lr = 1e-3
 max_grad_norm = 1.0
-num_total_steps = 1000
+num_training_steps = 1000
 num_warmup_steps = 100
-warmup_proportion = float(num_warmup_steps) / float(num_total_steps)  # 0.1
+warmup_proportion = float(num_warmup_steps) / float(num_training_steps)  # 0.1
 
 ### Previously BertAdam optimizer was instantiated like this:
-optimizer = BertAdam(model.parameters(), lr=lr, schedule='warmup_linear', warmup=warmup_proportion, t_total=num_total_steps)
+optimizer = BertAdam(model.parameters(), lr=lr, schedule='warmup_linear', warmup=warmup_proportion, num_training_steps=num_training_steps)
 ### and used like this:
 for batch in train_data:
     loss = model(batch)
     loss.backward()
     optimizer.step()
 
-### In PyTorch-Transformers, optimizer and schedules are splitted and instantiated like this:
+### In Transformers, optimizer and schedules are splitted and instantiated like this:
 optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
-scheduler = WarmupLinearSchedule(optimizer, warmup_steps=num_warmup_steps, t_total=num_total_steps)  # PyTorch scheduler
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps)  # PyTorch scheduler
 ### and used like this:
 for batch in train_data:
     loss = model(batch)
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)  # Gradient clipping is not in AdamW anymore (so you can use amp without issue)
-    scheduler.step()
     optimizer.step()
+    scheduler.step()
 ```
